@@ -219,6 +219,7 @@
     .agent-message{
        background-color:#c4c0c7;
        border-radius: 10px 0 10px 10px;
+       white-space: pre-line;
     }
 
     .customer-message{
@@ -332,11 +333,30 @@
 
     <!-- Chat area -->
     <div id="chat-messages" class="chat-messages p-3 d-flex flex-column gap-2">
+      {% if conversation %}
+      <!-- print previoyus messages-->
+       {% for msg in previous_messages %}
+        {% if msg.role == "user" %}
+         <div class = "customer-message p-2 px-3" style ="font-size: 13px; max-width: 85%;">
+           {{ msg.content }}
+         </div>
+        {% else %}
+         <div class = "agent-message p-2 px-3" style ="font-size: 13px; max-width: 85%;">
+           {{ msg.content }}
+         </div>
 
+        {% endif %}
+      {% endfor %}
+    
+
+
+    {% else %}
         <div class="agent-message p-2 px-3"
              style="font-size: 13px; max-width: 80%;">
-            Hi User, I'm Maya, How can I help with your order today?
+            Hi {{ request.user.first_name }}, I'm Maya, How can I help with your order today?
         </div>
+
+    {% endif %}    
 
     </div>
 
@@ -358,6 +378,20 @@
 </div>
 
 <script>
+
+function  showTyping(){
+  const messages = document.getElementById("chat-messages");
+  messages.insertAdjacentHTML("beforeend", `
+  <div id="typing-indicator" class"agent-message p-2" style="font-size:13px; max-width:85%;" > 
+    Typing...
+  </div> 
+  `);
+  messages.scrollTop = messages.scrollHeight;
+} 
+
+function HideTyping(){
+  document.getElementById("typing-indicator").remove();
+}
 function showchat(){
   document.getElementById("help-card").style.display= "none";
 
@@ -384,11 +418,36 @@ function showchat(){
   div.innerText = text; 
  
   messages.appendChild(div);
+  messages.scrollTop = messages.scrollHeight;
 }
 
-  function sendMessage(){
+function getCookie(name) {
+    let cookieValue = null;
+
+    if (document.cookie && document.cookie !== "") {
+        const cookies = document.cookie.split(";");
+
+        for (let cookie of cookies) {
+            cookie = cookie.trim();
+
+            if (cookie.startsWith(name + "=")) {
+                cookieValue = decodeURIComponent(
+                    cookie.substring(name.length + 1)
+                );
+                break;
+            }
+        }
+    }
+
+    return cookieValue;
+}
+
+
+async function sendMessage(){
     const input = document.getElementById("chat-input");
     const message = input.value.trim();
+
+    
     
     // dont send empty message
     if(!message) return;
@@ -396,10 +455,43 @@ function showchat(){
     appendMessage(message,"customer")
 
     input.value= ""; 
+    input.disabled=true;
 
+   const typingTimeout=  setTimeout(() => showTyping(), 1000 ); // show typing after 2 sec
+
+    // send message django view
+
+
+    try{
+     const response = await fetch("/support/chat/{{order.id}}/" ,  {
+        method: "POST",
+        headers : {
+          "Content-Type": "application/json",
+          "X-CSRFToken": getCookie("csrftoken")
+        },
+        body: JSON.stringify({message: message})
+      });
+
+      const data = await response.json()
+      HideTyping();
+      appendMessage(data.reply, "agent");
+      input.disabled=false;
+      input.focus();
+
+    } catch (error){
+      console.error("Error:" , error)
+      appendMessage("Sorry, something went wrong", "agent")
+       input.disabled=false;
+       input.focus();
+    } finally {
+      clearTimeout(typingTimeout);
+      HideTyping();
+     
+    }
 
   }
-  // send messase on the enter key
+
+// send messase on the enter key
   document.getElementById("chat-input").addEventListener("keydown" , function(e){
     if(e.key == "Enter") sendMessage();
   })

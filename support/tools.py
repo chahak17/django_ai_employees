@@ -18,7 +18,7 @@ def get_order_details(order_id):
            "days_since_order": (timezone.now()- order.created_at).days, #25 
        }
     except Order.DoesNotExist:
-        return {"error:" f"Order  #{order_id} not found."}
+        return {"error":  f"Order  #{order_id} not found."}
 
 
 
